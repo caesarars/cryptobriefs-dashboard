@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "../lib/api";
+import { api, getJson } from "../lib/api";
 import { apiUrl } from "../lib/config";
 import axios from "axios";
 
@@ -82,7 +82,7 @@ export default function AIBlogPage() {
     setIsWorking(true);
     try {
       appendStatus("Optimizing headline with Gemini...");
-      const resp = await axios.post<OptimizeTitleResp>(apiUrl("/api/admin/ai-blog/optimize-title"), { title: topic });
+      const resp = await api.post<OptimizeTitleResp>(apiUrl("/api/admin/ai-blog/optimize-title"), { title: topic });
       const improved = String(resp.data?.title || "").trim();
       if (improved) {
         setTopic(improved);
@@ -111,7 +111,7 @@ export default function AIBlogPage() {
     setStatusUpdates([]);
     try {
       appendStatus("Writing article draft with Gemini...");
-      const resp = await axios.post<GeneratePostResp>(apiUrl("/api/admin/ai-blog/generate-post"), {
+      const resp = await api.post<GeneratePostResp>(apiUrl("/api/admin/ai-blog/generate-post"), {
         title: topic,
         tone,
         length,
@@ -141,7 +141,7 @@ export default function AIBlogPage() {
     setIsWorking(true);
     try {
       appendStatus("Generating hero image...");
-      const resp = await axios.post<GenerateImageResp>(apiUrl("/api/admin/ai-blog/generate-image"), {
+      const resp = await api.post<GenerateImageResp>(apiUrl("/api/admin/ai-blog/generate-image"), {
         title: topic,
         tone,
       });
@@ -237,7 +237,7 @@ export default function AIBlogPage() {
     try {
       const out: BatchDraft[] = [];
       for (const idea of selectedIdeas) {
-        const resp = await axios.post<DraftResp>(apiUrl("/api/admin/ai-blog/draft"), {
+        const resp = await api.post<DraftResp>(apiUrl("/api/admin/ai-blog/draft"), {
           topic: idea,
           tone,
           length,
