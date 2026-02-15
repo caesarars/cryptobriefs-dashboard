@@ -11,6 +11,12 @@ type DraftResp = {
   imageMimeType?: string | null;
 };
 
+type OptimizeTitleResp = { title: string };
+
+type GeneratePostResp = { content: string };
+
+type GenerateImageResp = { imageBase64: string; imageMimeType: string };
+
 type IdeasResp = { text: string };
 
 type BatchDraft = {
@@ -44,6 +50,11 @@ export default function AIBlogPage() {
   const [publishStatus, setPublishStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
 
+  // Step-by-step status (mirror CMS)
+  const [statusUpdates, setStatusUpdates] = useState<string[]>([]);
+  const appendStatus = useCallback((msg: string) => setStatusUpdates((prev) => [...prev, msg]), []);
+  const [isWorking, setIsWorking] = useState(false);
+
   // Batch
   const [ideas, setIdeas] = useState<string[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -58,45 +69,114 @@ export default function AIBlogPage() {
     enabled: false,
   });
 
-  const generateDraft = useCallback(async () => {
+  const optimizeTitle = useCallback(async () => {
     setError("");
     setPublishStatus("");
-    setDraft(null);
-    setHeroPreview("");
+    setStatusUpdates([]);
 
     if (!topic.trim()) {
       setError("Topic is required");
       return;
     }
 
+    setIsWorking(true);
     try {
-      const resp = await axios.post<DraftResp>(apiUrl("/api/admin/ai-blog/draft"), {
-        topic,
+      appendStatus("Optimizing headline with Gemini...");
+      const resp = await axios.post<OptimizeTitleResp>(apiUrl("/api/admin/ai-blog/optimize-title"), { title: topic });
+      const improved = String(resp.data?.title || "").trim();
+      if (improved) {
+        setTopic(improved);
+        appendStatus(`Optimized title selected: ${improved}`);
+      } else {
+        appendStatus("Optimize returned empty. Keeping original.");
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Failed to optimize title");
+    } finally {
+      setIsWorking(false);
+    }
+  }, [appendStatus, topic]);
+
+  const generateContent = useCallback(async () => {
+    setError("");
+    setPublishStatus("");
+    setDraft(null);
+
+    if (!topic.trim()) {
+      setError("Title/topic is required");
+      return;
+    }
+
+    setIsWorking(true);
+    setStatusUpdates([]);
+    try {
+      appendStatus("Writing article draft with Gemini...");
+      const resp = await axios.post<GeneratePostResp>(apiUrl("/api/admin/ai-blog/generate-post"), {
+        title: topic,
         tone,
         length,
         audience,
-        withImage,
       });
 
-      setDraft(resp.data);
-      if (resp.data?.imageBase64) {
-        setHeroPreview(`data:${resp.data.imageMimeType || "image/jpeg"};base64,${resp.data.imageBase64}`);
+      const content = String(resp.data?.content || "");
+      setDraft({ title: topic, content });
+      appendStatus("Draft content generated.");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Failed to generate content");
+    } finally {
+      setIsWorking(false);
+    }
+  }, [appendStatus, audience, length, tone, topic]);
+
+  const generateHeroImage = useCallback(async () => {
+    setError("");
+    setPublishStatus("");
+    setHeroPreview("");
+
+    if (!topic.trim()) {
+      setError("Title/topic is required");
+      return;
+    }
+
+    setIsWorking(true);
+    try {
+      appendStatus("Generating hero image...");
+      const resp = await axios.post<GenerateImageResp>(apiUrl("/api/admin/ai-blog/generate-image"), {
+        title: topic,
+        tone,
+      });
+
+      const b64 = resp.data?.imageBase64;
+      const mime = resp.data?.imageMimeType || "image/jpeg";
+      if (b64) {
+        setDraft((prev) => ({
+          title: prev?.title || topic,
+          content: prev?.content || "",
+          imageBase64: b64,
+          imageMimeType: mime,
+        }));
+        setHeroPreview(`data:${mime};base64,${b64}`);
+        appendStatus("Hero image generated.");
       }
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Failed to generate draft");
+      setError(e?.response?.data?.error || e?.message || "Failed to generate image");
+    } finally {
+      setIsWorking(false);
     }
-  }, [audience, length, tone, topic, withImage]);
+  }, [appendStatus, tone, topic]);
 
   const publishDraft = useCallback(async () => {
     setError("");
     setPublishStatus("");
 
     if (!draft?.title || !draft?.content) {
-      setError("Generate a draft first");
+      setError("Generate content first");
       return;
     }
 
+    setIsWorking(true);
     try {
+      appendStatus("Publishing blog post...");
       setPublishStatus("Publishing...");
 
       let imageUrl = "";
@@ -114,12 +194,16 @@ export default function AIBlogPage() {
       });
 
       const slug = blog.data?.blog?.slug;
+      appendStatus("Blog post published successfully.");
       setPublishStatus(slug ? `Published: /blog/${slug}` : "Published");
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Publish failed");
       setPublishStatus("");
+      appendStatus("Publish aborted due to an error.");
+    } finally {
+      setIsWorking(false);
     }
-  }, [draft]);
+  }, [appendStatus, draft]);
 
   const loadIdeas = useCallback(async () => {
     setError("");
@@ -251,10 +335,42 @@ export default function AIBlogPage() {
             </label>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn" onClick={generateDraft}>Generate draft</button>
-              <button className="btn" onClick={publishDraft}>Publish</button>
+              <button className="btn" onClick={loadIdeas}>Load ideas</button>
+              <button className="btn" onClick={optimizeTitle} disabled={isWorking}>Improve title</button>
+              <button className="btn" onClick={generateContent} disabled={isWorking}>Generate content</button>
+              <button className="btn" onClick={generateHeroImage} disabled={isWorking || !withImage}>Generate image</button>
+              <button className="btn" onClick={publishDraft} disabled={isWorking}>Publish</button>
               {publishStatus ? <span className="muted">{publishStatus}</span> : null}
             </div>
+
+            {statusUpdates.length ? (
+              <div className="card" style={{ marginTop: 10 }}>
+                <div className="cardLabel">Status</div>
+                <ul style={{ marginTop: 8 }}>
+                  {statusUpdates.map((s, i) => (
+                    <li key={i} className="muted">{s}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {ideas.length ? (
+              <div className="card" style={{ marginTop: 10 }}>
+                <div className="cardLabel">Ideas</div>
+                <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                  {ideas.map((idea) => (
+                    <label key={idea} className="muted" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <input
+                        type="radio"
+                        checked={topic === idea}
+                        onChange={() => setTopic(idea)}
+                      />
+                      <span>{idea}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {draft ? (
               <div className="card" style={{ marginTop: 10 }}>
