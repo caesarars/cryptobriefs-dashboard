@@ -34,6 +34,11 @@ type SourceStats = {
   items: SourceStatItem[];
 };
 
+type SentimentTotals = {
+  news: unknown[];
+  sentimentCounts: { bullish: number; bearish: number; neutral: number };
+};
+
 function SourcePie({ items }: { items: SourceStatItem[] }) {
   const palette = [
     "#7c5cff",
@@ -122,6 +127,12 @@ export default function NewsPage() {
     staleTime: 60_000,
   });
 
+  const totalsQ = useQuery({
+    queryKey: ["news", "sentimentTotals", "week"],
+    queryFn: () => getJson<SentimentTotals>(`/api/news/newsWithSentiment?period=week`),
+    staleTime: 60_000,
+  });
+
   const rows = useMemo(() => q.data?.data || [], [q.data]);
   const totalPages = q.data?.pagination?.totalPages || 1;
 
@@ -132,22 +143,42 @@ export default function NewsPage() {
       <h1>News</h1>
       <p className="muted">Pulled from backend <code>/api/news/news</code>.</p>
 
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="cardLabel">Source distribution (last 7 days)</div>
-        {srcQ.isLoading ? (
-          <div style={{ marginTop: 8 }}>Loading…</div>
-        ) : srcQ.isError ? (
-          <div className="err" style={{ marginTop: 8 }}>
-            Failed to load source stats (needs backend /api/admin/news/source-stats)
-          </div>
-        ) : (
-          <>
-            <div className="muted" style={{ marginTop: 6 }}>
-              total {srcQ.data?.total ?? "—"} items · {srcQ.data?.uniqueSources ?? "—"} sources
+      <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", marginTop: 14 }}>
+        <div className="card">
+          <div className="cardLabel">Sentiment totals (last 7 days)</div>
+          {totalsQ.isLoading ? (
+            <div style={{ marginTop: 8 }}>Loading…</div>
+          ) : totalsQ.isError ? (
+            <div className="err" style={{ marginTop: 8 }}>Failed to load sentiment totals</div>
+          ) : (
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              <span className="pill bullish">Bullish {totalsQ.data?.sentimentCounts?.bullish ?? "—"}</span>
+              <span className="pill bearish">Bearish {totalsQ.data?.sentimentCounts?.bearish ?? "—"}</span>
+              <span className="pill neutral">Neutral {totalsQ.data?.sentimentCounts?.neutral ?? "—"}</span>
             </div>
-            <SourcePie items={srcQ.data?.items || []} />
-          </>
-        )}
+          )}
+          <div className="muted" style={{ marginTop: 10 }}>
+            Based on <code>/api/news/newsWithSentiment?period=week</code>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="cardLabel">Source distribution (last 7 days)</div>
+          {srcQ.isLoading ? (
+            <div style={{ marginTop: 8 }}>Loading…</div>
+          ) : srcQ.isError ? (
+            <div className="err" style={{ marginTop: 8 }}>
+              Failed to load source stats (needs backend /api/admin/news/source-stats)
+            </div>
+          ) : (
+            <>
+              <div className="muted" style={{ marginTop: 6 }}>
+                total {srcQ.data?.total ?? "—"} items · {srcQ.data?.uniqueSources ?? "—"} sources
+              </div>
+              <SourcePie items={srcQ.data?.items || []} />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
