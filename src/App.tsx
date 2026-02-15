@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import OverviewPage from "./pages/OverviewPage";
 import NewsPage from "./pages/NewsPage";
 import NewsletterPage from "./pages/NewsletterPage";
+import AIBlogPage from "./pages/AIBlogPage";
 import "./App.css";
 
 function App() {
@@ -19,6 +20,9 @@ function App() {
           <NavLink to="/newsletter" className={({ isActive }) => (isActive ? "navItem active" : "navItem")}>
             Newsletter
           </NavLink>
+          <NavLink to="/ai-blog" className={({ isActive }) => (isActive ? "navItem active" : "navItem")}>
+            AI Blog
+          </NavLink>
         </nav>
         <div className="sidebarFoot">Vite + React + TS</div>
       </aside>
@@ -28,6 +32,7 @@ function App() {
           <Route path="/" element={<OverviewPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/newsletter" element={<NewsletterPage />} />
+          <Route path="/ai-blog" element={<AIBlogPage />} />
         </Routes>
       </main>
     </div>
