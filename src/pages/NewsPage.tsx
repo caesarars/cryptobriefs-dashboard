@@ -2,11 +2,15 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson } from "../lib/api";
 import {
+  Bar,
+  BarChart,
   Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 
 type NewsItem = {
@@ -38,6 +42,40 @@ type SentimentTotals = {
   news: unknown[];
   sentimentCounts: { bullish: number; bearish: number; neutral: number };
 };
+
+function SentimentBar({ counts }: { counts: { bullish: number; bearish: number; neutral: number } }) {
+  const data = [
+    { name: "Bullish", value: Number(counts?.bullish || 0), fill: "rgba(36, 207, 143, 0.75)" },
+    { name: "Bearish", value: Number(counts?.bearish || 0), fill: "rgba(255, 107, 107, 0.75)" },
+    { name: "Neutral", value: Number(counts?.neutral || 0), fill: "rgba(255, 255, 255, 0.35)" },
+  ];
+
+  return (
+    <div style={{ height: 190, marginTop: 12 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+          <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.12)" }} />
+          <YAxis tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.12)" }} />
+          <Tooltip
+            contentStyle={{
+              background: "rgba(10,10,14,0.95)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              color: "#f1f3f9",
+            }}
+            itemStyle={{ color: "#f1f3f9" }}
+            formatter={(value: any) => [value, "articles"]}
+          />
+          <Bar dataKey="value" radius={[10, 10, 4, 4]}>
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 function SourcePie({ items }: { items: SourceStatItem[] }) {
   const palette = [
@@ -151,11 +189,14 @@ export default function NewsPage() {
           ) : totalsQ.isError ? (
             <div className="err" style={{ marginTop: 8 }}>Failed to load sentiment totals</div>
           ) : (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-              <span className="pill bullish">Bullish {totalsQ.data?.sentimentCounts?.bullish ?? "—"}</span>
-              <span className="pill bearish">Bearish {totalsQ.data?.sentimentCounts?.bearish ?? "—"}</span>
-              <span className="pill neutral">Neutral {totalsQ.data?.sentimentCounts?.neutral ?? "—"}</span>
-            </div>
+            <>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                <span className="pill bullish">Bullish {totalsQ.data?.sentimentCounts?.bullish ?? "—"}</span>
+                <span className="pill bearish">Bearish {totalsQ.data?.sentimentCounts?.bearish ?? "—"}</span>
+                <span className="pill neutral">Neutral {totalsQ.data?.sentimentCounts?.neutral ?? "—"}</span>
+              </div>
+              <SentimentBar counts={totalsQ.data?.sentimentCounts || { bullish: 0, bearish: 0, neutral: 0 }} />
+            </>
           )}
           <div className="muted" style={{ marginTop: 10 }}>
             Based on <code>/api/news/newsWithSentiment?period=week</code>
